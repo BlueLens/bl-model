@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bl-image-process
+  namespace: index
+  labels:
+    name: bl-image-process
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    name: bl-image-process
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: bl-image-process
+  namespace: index
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        role: index
+        name: bl-image-process
+    spec:
+      restartPolicy: Always
+      containers:
+      - image: bluelens/bl-image-process:latest
+        name: bl-image-process
+        ports:
+        - containerPort: 8080
+          name: http-server
+        env:
+        - name: AWS_ACCESS_KEY
+          value: ""
+        - name: AWS_SECRET_ACCESS_KEY
+          value: ""
+        - name: REDIS_SERVER
+          value: ""
+        - name: REDIS_PASSWORD
+          value: ""

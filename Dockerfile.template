@@ -1,0 +1,17 @@
+FROM bluelens/bl-index-base:latest
+
+
+RUN mkdir /usr/src/app
+WORKDIR /usr/src/app
+
+COPY . /usr/src/app
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+ENV OD_MODEL=/opt/app/model/frozen_inference_graph.pb
+ENV REDIS_SERVER=35.189.131.36
+ENV REDIS_PASSWORD={YOUR_PASSWORD}
+
+WORKDIR /usr/src/app/grpc
+
+CMD ["python", "object_detect_server.py"]
