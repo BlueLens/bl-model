@@ -20,6 +20,9 @@ DB_PRODUCT_PORT = os.environ['DB_PRODUCT_PORT']
 DB_PRODUCT_USER = os.environ['DB_PRODUCT_USER']
 DB_PRODUCT_PASSWORD = os.environ['DB_PRODUCT_PASSWORD']
 DB_PRODUCT_NAME = os.environ['DB_PRODUCT_NAME']
+DB_DATASET_HOST = os.environ['DB_DATASET_HOST']
+DB_DATASET_NAME = os.environ['DB_DATASET_NAME']
+DB_DATASET_PORT = os.environ['DB_DATASET_PORT']
 AWS_ACCESS_KEY = os.environ['AWS_ACCESS_KEY'].replace('"', '')
 AWS_SECRET_ACCESS_KEY = os.environ['AWS_SECRET_ACCESS_KEY'].replace('"', '')
 
@@ -121,14 +124,17 @@ def spawn(uuid):
   pool.addContainerEnv(container, 'DB_PRODUCT_USER', DB_PRODUCT_USER)
   pool.addContainerEnv(container, 'DB_PRODUCT_PASSWORD', DB_PRODUCT_PASSWORD)
   pool.addContainerEnv(container, 'DB_PRODUCT_NAME', DB_PRODUCT_NAME)
-  pool.setContainerImage(container, 'bluelens/bl-text-classification-modeler' + RELEASE_MODE)
+  pool.addContainerEnv(container, 'DB_DATASET_HOST', DB_DATASET_HOST)
+  pool.addContainerEnv(container, 'DB_DATASET_NAME', DB_DATASET_NAME)
+  pool.addContainerEnv(container, 'DB_DATASET_PORT', DB_DATASET_PORT)
+  pool.setContainerImage(container, 'bluelens/bl-text-classification-modeler:' + RELEASE_MODE)
   pool.setContainerImagePullPolicy(container, 'Always')
   pool.addContainer(container)
   pool.setRestartPolicy('Never')
   pool.spawn()
 
 def dispatch(rconn, version_id):
-  spawn(str(uuid.uuid4()))
+  spawn(str(1))
 
 def remove_prev_pods():
   pool = spawning_pool.SpawningPool()
