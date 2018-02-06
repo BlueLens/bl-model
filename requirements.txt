@@ -5,5 +5,5 @@ pymongo==3.6.0
 python-dateutil==2.6.1
 redis==2.10.6
 six==1.11.0
-stylelens-product==1.0.58
+stylelens-product==1.0.76
 urllib3==1.22

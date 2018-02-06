@@ -7,6 +7,7 @@ import time
 from bluelens_spawning_pool import spawning_pool
 from stylelens_product.products import Products
 from stylelens_product.crawls import Crawls
+from stylelens_product.models import Models
 import redis
 import pickle
 
@@ -23,9 +24,17 @@ DB_PRODUCT_NAME = os.environ['DB_PRODUCT_NAME']
 AWS_ACCESS_KEY = os.environ['AWS_ACCESS_KEY'].replace('"', '')
 AWS_SECRET_ACCESS_KEY = os.environ['AWS_SECRET_ACCESS_KEY'].replace('"', '')
 
+DB_DATASET_HOST = os.environ['DB_DATASET_HOST']
+DB_DATASET_NAME = os.environ['DB_DATASET_NAME']
+DB_DATASET_PORT = os.environ['DB_DATASET_PORT']
+DB_DATASET_USER = os.environ['DB_DATASET_USER']
+DB_DATASET_PASSWORD = os.environ['DB_DATASET_PASSWORD']
+
 REDIS_PRODUCT_TEXT_MODEL_PROCESS_QUEUE = 'bl:product:text:model:process:queue'
 REDIS_CRAWL_VERSION = 'bl:crawl:version'
 REDIS_CRAWL_VERSION_LATEST = 'latest'
+
+TEXT_CLASSIFICATION_MODEL_TYPE = 'text-classification'
 
 SPAWNING_CRITERIA = 50
 PROCESSING_TERM = 60
@@ -36,6 +45,9 @@ options = {
 }
 log = Logging(options, tag='bl-model')
 rconn = redis.StrictRedis(REDIS_SERVER, port=6379, password=REDIS_PASSWORD)
+
+
+model_api = None
 
 def get_latest_crawl_version(rconn):
   value = rconn.hget(REDIS_CRAWL_VERSION, REDIS_CRAWL_VERSION_LATEST)
@@ -121,14 +133,19 @@ def spawn(uuid):
   pool.addContainerEnv(container, 'DB_PRODUCT_USER', DB_PRODUCT_USER)
   pool.addContainerEnv(container, 'DB_PRODUCT_PASSWORD', DB_PRODUCT_PASSWORD)
   pool.addContainerEnv(container, 'DB_PRODUCT_NAME', DB_PRODUCT_NAME)
-  pool.setContainerImage(container, 'bluelens/bl-text-classification-modeler' + RELEASE_MODE)
+  pool.addContainerEnv(container, 'DB_DATASET_HOST', DB_DATASET_HOST)
+  pool.addContainerEnv(container, 'DB_DATASET_NAME', DB_DATASET_NAME)
+  pool.addContainerEnv(container, 'DB_DATASET_PORT', DB_DATASET_PORT)
+  pool.addContainerEnv(container, 'DB_DATASET_USER', DB_DATASET_USER)
+  pool.addContainerEnv(container, 'DB_DATASET_PASSWORD', DB_DATASET_PASSWORD)
+  pool.setContainerImage(container, 'bluelens/bl-text-classification-modeler:' + RELEASE_MODE)
   pool.setContainerImagePullPolicy(container, 'Always')
   pool.addContainer(container)
   pool.setRestartPolicy('Never')
   pool.spawn()
 
 def dispatch(rconn, version_id):
-  spawn(str(uuid.uuid4()))
+  spawn('1')
 
 def remove_prev_pods():
   pool = spawning_pool.SpawningPool()
@@ -173,17 +190,18 @@ def check_condition_to_start(version_id):
 
   product_api = Products()
   crawl_api = Crawls()
+  model_api = Models()
 
   try:
+    model = model_api.get_model(TEXT_CLASSIFICATION_MODEL_TYPE, version_id=version_id)
+    if model is not None:
+      return False
+
     log.info("check_condition_to_start")
     # Check if crawling process is done
     total_crawl_size = crawl_api.get_size_crawls(version_id)
     crawled_size = crawl_api.get_size_crawls(version_id, status='done')
     if total_crawl_size != crawled_size:
-      return False
-
-    queue_size = rconn.llen(REDIS_PRODUCT_TEXT_MODEL_PROCESS_QUEUE)
-    if queue_size > 0:
       return False
 
     total_product_size = product_api.get_size_products(version_id)
@@ -198,7 +216,19 @@ def check_condition_to_start(version_id):
 
   return True
 
+def create_model(rconn, version_id):
+  global model_api
+
+  try:
+    res = model_api.add_model(TEXT_CLASSIFICATION_MODEL_TYPE, version_id)
+  except Exception as e:
+    log.error(str(e))
+
+
 def start(rconn):
+  global model_api
+  model_api = Models()
+
   while True:
     version_id = get_latest_crawl_version(rconn)
     if version_id is not None:
@@ -206,12 +236,12 @@ def start(rconn):
       ok = check_condition_to_start(version_id)
       log.info("check_condition_to_start: " + str(ok))
       if ok is True:
-        rconn.lpush(REDIS_PRODUCT_TEXT_MODEL_PROCESS_QUEUE, 'start')
+        create_model(rconn, version_id)
         dispatch(rconn, version_id)
     time.sleep(60*10)
 
 if __name__ == '__main__':
-  log.info('Start bl-model:1')
+  log.info('Start bl-model:2')
   try:
     Process(target=start, args=(rconn,)).start()
   except Exception as e:
